@@ -1,0 +1,582 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>錢進美股 數鈔機</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    /* 黑暗模式樣式 */
+    body.dark-mode {
+      background-color: #1a202c; /* 深藍灰色 */
+      color: #e2e8f0; /* 淺灰白文字 */
+    }
+    .dark-mode .bg-white {
+      background-color: #2d3748; /* 卡片深色背景 */
+    }
+    .dark-mode .text-gray-100 { /* body 背景色轉為 dark-mode 的 text-color */
+      color: #e2e8f0;
+    }
+    .dark-mode .text-gray-600 { /* 轉換較深的灰字 */
+      color: #cbd5e0;
+    }
+    .dark-mode .text-gray-500 { /* 轉換較深的灰字 */
+      color: #a0aec0;
+    }
+    .dark-mode input,
+    .dark-mode .quantity-btn {
+      background-color: #4a5568; /* 輸入框和按鈕背景 */
+      border-color: #616e7f; /* 輸入框和按鈕邊框 */
+      color: #e2e8f0; /* 輸入框和按鈕文字 */
+    }
+    .dark-mode input:focus,
+    .dark-mode .quantity-btn:focus {
+      border-color: #63b3ed; /* 焦點邊框 */
+      box-shadow: 0 0 0 2px rgba(99, 179, 237, 0.5); /* 焦點陰影 */
+    }
+    .dark-mode .quantity-btn:hover {
+      background-color: #616e7f; /* 懸停背景 */
+    }
+    .dark-mode .quantity-btn.selected {
+      border-color: #F97316; /* 橙色邊框 */
+      color: #F97316; /* 橙色文字 */
+      background-color: #92400e; /* 深橙色背景 */
+    }
+    .dark-mode .quantity-btn.selected:hover {
+      background-color: #c05621; /* 選中懸停背景 */
+    }
+    .dark-mode .quantity-highlight {
+      animation: darkFlash 0.8s ease-out;
+    }
+    @keyframes darkFlash {
+      0%, 100% { background-color: #92400e; } /* dark orange-700 */
+      50% { background-color: #ea580c; } /* dark orange-600 */
+    }
+    .dark-mode #clearBtn,
+    .dark-mode #themeToggleBtn {
+      background-color: #4a5568; /* 清除按鈕和切換按鈕背景 */
+      color: #e2e8f0; /* 文字顏色 */
+    }
+    .dark-mode #clearBtn:hover,
+    .dark-mode #themeToggleBtn:hover {
+      background-color: #616e7f; /* 清除按鈕和切換按鈕懸停背景 */
+    }
+    .dark-mode .text-red-500 { /* 錯誤文字顏色在暗模式下可能需要調整 */
+      color: #fca5a5; /* 淺紅 */
+    }
+
+    /* 更新選中樣式：橙色邊框、橙色文字、淺橙色背景 */
+    .quantity-btn {
+      transition: all 0.3s ease; /* 確保懸停動畫平滑 */
+    }
+    .quantity-btn.selected {
+      border: 2px solid #F97316; /* Tailwind orange-500 */
+      color: #F97316; /* Tailwind orange-600 */
+      font-weight: bold;
+      background-color: #FFEDD5; /* Tailwind orange-50 */
+    }
+    .quantity-btn:hover {
+      background-color: #F3F4F6; /* Tailwind gray-100 */
+      transform: translateY(-2px); /* 懸停微抬效果 */
+      border-color: #F97316; /* 邊框漸變到橙色 */
+    }
+    .quantity-btn.selected:hover {
+      background-color: #FED7AA; /* Tailwind orange-100 */
+    }
+    .error-shake {
+      animation: shake 0.3s;
+    }
+    @keyframes shake {
+      0%, 100% { transform: translateX(0); }
+      25% { transform: translateX(-5px); }
+      75% { transform: translateX(5px); }
+    }
+    /* Spinner 樣式 */
+    .spinner {
+      border: 4px solid rgba(0, 0, 0, 0.1);
+      border-left-color: #3B82F6; /* Tailwind blue-500 */
+      border-radius: 50%;
+      width: 1.5rem;
+      height: 1.5rem;
+      animation: spin 1s linear infinite;
+      display: inline-block;
+      vertical-align: middle;
+      margin-left: 0.5rem;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    /* 股數選擇時的閃爍效果 */
+    .quantity-highlight {
+      animation: flash 0.8s ease-out;
+      color: #F97316; /* Tailwind orange-600 */
+      font-weight: bold;
+      background-color: #FFEDD5; /* Tailwind orange-50 */
+    }
+    @keyframes flash {
+      0%, 100% { background-color: #FFEDD5; } /* orange-50 */
+      50% { background-color: #FDBA74; } /* orange-200 */
+    }
+    /* 結果區滑入動畫 */
+    .result-slide-in {
+      animation: slideIn 0.5s ease-out;
+    }
+    @keyframes slideIn {
+      0% { transform: translateX(20px); opacity: 0; }
+      100% { transform: translateX(0); opacity: 1; }
+    }
+  </style>
+</head>
+<body class="bg-gray-100 min-h-screen flex items-center justify-center p-4">
+  <div class="bg-white rounded-lg shadow-lg p-6 max-w-md w-full">
+    <h2 class="text-2xl font-bold text-center mb-6">錢進美股 數鈔機</h2>
+
+    <div class="mb-4">
+      <label for="price" class="block text-lg font-medium mb-2">股價 (USD)</label>
+      <input
+        type="number"
+        id="price"
+        step="0.01"
+        min="0"
+        class="w-full p-2 border rounded-lg focus:ring-2 focus:ring-gray-500"
+        placeholder="輸入美元股價"
+        aria-describedby="price-error"
+      />
+      <p id="price-error" class="text-red-500 text-sm mt-1 hidden" role="alert" aria-live="assertive"></p>
+    </div>
+
+    <div class="mb-4">
+      <label for="quantityButtons" class="block text-lg font-medium mb-2">股數</label>
+      <div id="quantityButtons" class="grid grid-cols-4 gap-2"></div>
+      <p id="quantity-error" class="text-red-500 text-sm mt-1 hidden" role="alert" aria-live="assertive"></p>
+    </div>
+
+    <div class="mb-4">
+      <label for="exchangeRateInfo" class="block text-lg font-medium mb-2">當前匯率 (TWD/USD)</label>
+      <div id="exchangeRateInfo" class="text-lg text-gray-600 flex flex-col">
+        <span id="currentRateDisplay"></span>
+      </div>
+
+      <div class="mt-4">
+        <label for="historyDate" class="block text-base font-medium mb-2">或查詢歷史匯率</label>
+        <input
+          type="date"
+          id="historyDate"
+          class="w-full p-2 border rounded-lg focus:ring-2 focus:ring-gray-500"
+          max="${new Date().toISOString().split('T')[0]}"
+          aria-label="選擇查詢歷史匯率的日期"
+        />
+        <p id="rate-error" class="text-red-500 text-sm mt-1 hidden" role="alert" aria-live="assertive"></p>
+      </div>
+      <input
+        type="number"
+        id="manualRate"
+        step="0.01"
+        min="0"
+        class="w-full p-2 border rounded-lg mt-2 hidden"
+        placeholder="手動輸入匯率"
+        aria-describedby="manual-rate-error"
+      />
+      <p id="manual-rate-error" class="text-red-500 text-sm mt-1 hidden" role="alert" aria-live="assertive"></p>
+    </div>
+
+    <div id="result" class="mt-6 text-lg font-bold text-center flex flex-col items-center"></div>
+
+    <div class="mt-4 text-center">
+      <button
+        id="themeToggleBtn"
+        class="py-2 px-4 bg-gray-700 text-white rounded-lg hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-600 transition-colors duration-300"
+        aria-label="切換黑暗模式"
+      >
+        切換黑暗模式
+      </button>
+    </div>
+
+    <button
+      id="clearBtn"
+      class="mt-6 w-full py-2 px-4 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-400"
+      aria-label="清除所有輸入和計算結果"
+    >
+      清除
+    </button>
+  </div>
+
+  <script>
+    const config = {
+      quantities: [1, 5, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100],
+      defaultRate: 29.10,
+      apiUrl: 'https://open.er-api.com/v6/latest/USD',
+      historyApiUrl: 'https://open.er-api.com/v6/{{DATE}}/USD',
+      retryInterval: 5 * 60 * 1000, // 5分鐘重試
+      maxRetries: 3, // 最大重試次數
+      errorMessages: {
+        invalidPrice: '請輸入有效股價 (大於 0)',
+        noQuantity: '請選擇或輸入股數',
+        noRate: '無法獲取匯率，請手動輸入或稍後再試',
+        historyRateFailed: '無法獲取該日期匯率，請檢查日期或稍後再試',
+        invalidManualRate: '請輸入有效手動匯率 (大於 0)',
+      },
+    };
+
+    const state = {
+      selectedQuantity: null,
+      selectedRate: null,
+      lastValidRate: localStorage.getItem('lastValidRate') || config.defaultRate,
+      lastUpdateTime: null,
+      isFetchingRate: false,
+      retryCount: 0,
+    };
+
+    const elements = {
+      priceInput: document.getElementById('price'),
+      quantityButtons: document.getElementById('quantityButtons'),
+      exchangeRateInfo: document.getElementById('exchangeRateInfo'),
+      currentRateDisplay: document.getElementById('currentRateDisplay'),
+      historyDateInput: document.getElementById('historyDate'),
+      manualRateInput: document.getElementById('manualRate'),
+      result: document.getElementById('result'),
+      clearBtn: document.getElementById('clearBtn'),
+      priceError: document.getElementById('price-error'),
+      quantityError: document.getElementById('quantity-error'),
+      rateError: document.getElementById('rate-error'),
+      manualRateError: document.getElementById('manual-rate-error'),
+      themeToggleBtn: document.getElementById('themeToggleBtn'), // 新增主題切換按鈕
+    };
+
+    const debounce = (func, delay) => {
+      let timeoutId;
+      return (...args) => {
+        clearTimeout(timeoutId);
+        timeoutId = setTimeout(() => func(...args), delay);
+      };
+    };
+
+    const formatDateToCST = (utcDateString) => {
+      if (!utcDateString) return '';
+      const date = new Date(utcDateString);
+      const options = { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false, timeZone: 'Asia/Taipei' };
+      return date.toLocaleString('zh-TW', options) + ' (CST)';
+    };
+
+    const showLoadingSpinner = (element) => {
+      element.innerHTML = '正在載入匯率 <span class="spinner"></span>';
+      state.isFetchingRate = true;
+    };
+
+    const hideLoadingSpinner = () => {
+      state.isFetchingRate = false;
+    };
+
+    const showError = (element, message) => {
+      element.textContent = message;
+      element.classList.remove('hidden');
+      element.setAttribute('aria-live', 'assertive');
+    };
+
+    const hideError = (element) => {
+      element.classList.add('hidden');
+      element.textContent = '';
+    };
+
+    const clearAllErrors = () => {
+      hideError(elements.priceError);
+      hideError(elements.quantityError);
+      hideError(elements.rateError);
+      hideError(elements.manualRateError);
+      elements.priceInput.classList.remove('border-red-500', 'error-shake');
+    };
+
+    const fetchExchangeRate = async (date = 'latest') => {
+      if (state.isFetchingRate) return;
+
+      clearAllErrors();
+      showLoadingSpinner(elements.currentRateDisplay);
+      elements.manualRateInput.classList.add('hidden');
+
+      let url = config.apiUrl;
+      if (date !== 'latest') {
+        url = config.historyApiUrl.replace('{{DATE}}', date);
+      }
+
+      try {
+        const response = await fetch(url);
+        if (!response.ok) throw new Error(`API 請求失敗: ${response.status}`);
+        const data = await response.json();
+
+        if (data.result === 'success' && data.rates && data.rates.TWD) {
+          state.selectedRate = data.rates.TWD;
+          state.lastValidRate = state.selectedRate;
+          state.lastUpdateTime = data.time_last_update_utc;
+          localStorage.setItem('lastValidRate', state.selectedRate);
+          elements.currentRateDisplay.innerHTML = `
+            <span>當前匯率: ${state.selectedRate.toFixed(2)}</span>
+            <span class="block text-sm text-gray-500">更新於 ${formatDateToCST(state.lastUpdateTime)}</span>
+          `;
+          elements.manualRateInput.classList.add('hidden');
+          state.retryCount = 0;
+          calculate();
+        } else {
+          throw new Error(date === 'latest' ? '無台幣匯率資料' : '該日期無台幣匯率資料');
+        }
+      } catch (error) {
+        console.error('匯率 API 錯誤:', error);
+        state.selectedRate = state.lastValidRate;
+        elements.currentRateDisplay.innerHTML = `
+          <span>當前匯率: ${state.selectedRate.toFixed(2)}</span>
+          <span class="block text-sm text-gray-500">備用匯率 (來自上次成功獲取或預設值)</span>
+        `;
+        elements.manualRateInput.classList.remove('hidden');
+        elements.manualRateInput.value = state.selectedRate;
+        showError(elements.rateError, date === 'latest' ? config.errorMessages.noRate : config.errorMessages.historyRateFailed);
+        calculate();
+        if (date === 'latest' && state.retryCount < config.maxRetries) {
+          state.retryCount++;
+          setTimeout(() => fetchExchangeRate(date), config.retryInterval * (state.retryCount + 1));
+        }
+      } finally {
+        hideLoadingSpinner();
+      }
+    };
+
+    const setupQuantityButtons = () => {
+      elements.quantityButtons.innerHTML = '';
+      config.quantities.forEach(qty => {
+        const btn = document.createElement('button');
+        btn.textContent = qty;
+        btn.className = 'quantity-btn p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-500';
+        btn.setAttribute('aria-label', `選擇 ${qty} 股`);
+        btn.addEventListener('click', () => {
+          console.log(`Clicked quantity: ${qty}`); // 除錯用
+          state.selectedQuantity = qty;
+          elements.quantityButtons.querySelectorAll('button').forEach(b => b.classList.remove('selected', 'quantity-highlight'));
+          const customInput = elements.quantityButtons.querySelector('input[type="number"]');
+          if (customInput) customInput.classList.remove('selected', 'quantity-highlight');
+          btn.classList.add('selected', 'quantity-highlight');
+          localStorage.setItem('selectedQuantity', qty);
+          hideError(elements.quantityError);
+          calculateWithHighlight();
+        });
+        elements.quantityButtons.appendChild(btn);
+      });
+
+      const input = document.createElement('input');
+      input.type = 'number';
+      input.min = 1;
+      input.placeholder = '自訂股數';
+      input.className = 'quantity-btn p-2 border rounded-lg col-span-2 focus:outline-none focus:ring-2 focus:ring-gray-500';
+      input.setAttribute('aria-label', '輸入自訂股數');
+      input.addEventListener('input', (e) => {
+        const qty = parseInt(e.target.value);
+        console.log(`Input quantity: ${qty}`); // 除錯用
+        elements.quantityButtons.querySelectorAll('button').forEach(b => b.classList.remove('selected', 'quantity-highlight'));
+        if (qty > 0) {
+          state.selectedQuantity = qty;
+          input.classList.add('selected', 'quantity-highlight');
+          localStorage.setItem('selectedQuantity', qty);
+          hideError(elements.quantityError);
+          debounce(calculateWithHighlight, 300)();
+        } else {
+          state.selectedQuantity = null;
+          input.classList.remove('selected', 'quantity-highlight');
+          hideError(elements.quantityError);
+          debounce(calculate, 300)();
+        }
+      });
+      elements.quantityButtons.appendChild(input);
+
+      const savedQuantity = localStorage.getItem('selectedQuantity');
+      if (savedQuantity) {
+        state.selectedQuantity = parseInt(savedQuantity);
+        const savedBtn = Array.from(elements.quantityButtons.querySelectorAll('button')).find(btn => parseInt(btn.textContent) === state.selectedQuantity);
+        if (savedBtn) {
+          savedBtn.classList.add('selected');
+        } else {
+          input.value = savedQuantity;
+          input.classList.add('selected');
+        }
+      }
+    };
+
+    const validateInputs = (price) => {
+      let hasError = false;
+      clearAllErrors();
+
+      if (isNaN(price) || price <= 0) {
+        showError(elements.priceError, config.errorMessages.invalidPrice);
+        elements.priceInput.classList.add('border-red-500', 'error-shake');
+        hasError = true;
+      }
+
+      if (!state.selectedQuantity) {
+        showError(elements.quantityError, config.errorMessages.noQuantity);
+        hasError = true;
+      }
+
+      if (!elements.manualRateInput.classList.contains('hidden')) {
+        const manualRate = parseFloat(elements.manualRateInput.value);
+        if (isNaN(manualRate) || manualRate <= 0) {
+          showError(elements.manualRateError, config.errorMessages.invalidManualRate);
+          hasError = true;
+        }
+      } else if (!state.selectedRate || state.selectedRate <= 0) {
+        showError(elements.rateError, config.errorMessages.noRate);
+        hasError = true;
+      }
+
+      return hasError ? 'validation_failed' : null;
+    };
+
+    const calculateWithHighlight = () => {
+      console.log('Triggering calculate with highlight'); // 除錯用
+      calculate(true);
+    };
+
+    const calculate = (highlight = false) => {
+      const price = parseFloat(elements.priceInput.value);
+      elements.result.innerHTML = '';
+
+      const validationError = validateInputs(price);
+      if (validationError) {
+        elements.result.innerHTML = `<span class="text-red-500">${config.errorMessages[validationError] || '請檢查輸入'}</span>`;
+        return;
+      }
+
+      const finalRate = (!elements.manualRateInput.classList.contains('hidden') && parseFloat(elements.manualRateInput.value) > 0)
+        ? parseFloat(elements.manualRateInput.value)
+        : state.selectedRate;
+
+      if (!finalRate || finalRate <= 0) {
+        showError(elements.rateError, config.errorMessages.noRate);
+        elements.result.innerHTML = `<span class="text-red-500">${config.errorMessages.noRate}</span>`;
+        return;
+      }
+
+      const totalUSD = price * state.selectedQuantity;
+      const totalTWD = totalUSD * finalRate;
+      const roundedTotalTWD = Math.round(totalTWD);
+
+      elements.result.innerHTML = `
+        <div class="grid grid-cols-[1fr_1fr_auto] gap-x-4 items-baseline w-full result-slide-in">
+          <span class="col-start-1 text-gray-600 justify-self-end">總金額：</span>
+          <span class="col-start-2 text-orange-600 text-3xl font-extrabold text-right">${roundedTotalTWD.toLocaleString()}</span>
+          <span class="col-start-3 text-gray-600 text-right">台幣</span>
+          <span class="col-start-1 text-gray-600 justify-self-end mt-6">美元金額：</span>
+          <span class="col-start-2 text-gray-500 text-xl font-normal mt-6 text-right">${totalUSD.toFixed(1).toLocaleString()}</span>
+          <span class="col-start-3 text-gray-500 text-xl font-normal mt-6 text-right">USD</span>
+        </div>
+      `;
+    };
+
+    const clearInputs = () => {
+      elements.priceInput.value = '';
+      elements.historyDateInput.value = '';
+      elements.manualRateInput.value = '';
+      elements.manualRateInput.classList.add('hidden');
+      elements.result.innerHTML = '';
+      state.selectedQuantity = null;
+      elements.quantityButtons.querySelectorAll('button').forEach(b => b.classList.remove('selected', 'quantity-highlight'));
+      const customInput = elements.quantityButtons.querySelector('input[type="number"]');
+      if (customInput) customInput.classList.remove('selected', 'quantity-highlight');
+      localStorage.removeItem('selectedQuantity');
+      localStorage.removeItem('lastValidRate');
+      localStorage.removeItem('savedPrice');
+      state.selectedRate = null;
+      state.retryCount = 0;
+      clearAllErrors();
+      elements.currentRateDisplay.innerHTML = '';
+      fetchExchangeRate();
+    };
+
+    const init = () => {
+      setupQuantityButtons();
+      fetchExchangeRate();
+
+      elements.priceInput.addEventListener('input', (e) => {
+        if (parseFloat(e.target.value) < 0) e.target.value = '';
+        hideError(elements.priceError);
+        localStorage.setItem('savedPrice', e.target.value);
+        debounce(calculate, 300)();
+      });
+
+      elements.historyDateInput.addEventListener('change', (e) => {
+        const selectedDate = e.target.value;
+        if (selectedDate) {
+          elements.currentRateDisplay.innerHTML = '';
+          fetchExchangeRate(selectedDate);
+          elements.manualRateInput.classList.add('hidden');
+        } else {
+          fetchExchangeRate();
+        }
+      });
+
+      elements.manualRateInput.addEventListener('input', (e) => {
+        const rate = parseFloat(e.target.value);
+        if (rate > 0) {
+          state.selectedRate = rate;
+          state.lastValidRate = rate;
+          state.lastUpdateTime = null;
+          localStorage.setItem('lastValidRate', rate);
+          elements.currentRateDisplay.innerHTML = `
+            <span>當前匯率: ${rate.toFixed(2)}</span>
+            <span class="block text-sm text-gray-500">手動輸入</span>
+          `;
+          hideError(elements.rateError);
+          hideError(elements.manualRateError);
+          debounce(calculate, 300)();
+        } else {
+          state.selectedRate = null;
+          showError(elements.manualRateError, config.errorMessages.invalidManualRate);
+          elements.result.innerHTML = '';
+        }
+      });
+
+      elements.clearBtn.addEventListener('click', clearInputs);
+
+      // 黑暗模式切換邏輯
+      const prefersDarkMode = window.matchMedia('(prefers-color-scheme: dark)');
+
+      const applyTheme = (isDarkMode) => {
+        if (isDarkMode) {
+          document.body.classList.add('dark-mode');
+        } else {
+          document.body.classList.remove('dark-mode');
+        }
+      };
+
+      // 初始化時根據 localStorage 或系統設定應用主題
+      const savedTheme = localStorage.getItem('theme');
+      if (savedTheme === 'dark') {
+        applyTheme(true);
+      } else if (savedTheme === 'light') {
+        applyTheme(false);
+      } else {
+        // 如果沒有儲存，則根據系統偏好設定
+        applyTheme(prefersDarkMode.matches);
+      }
+
+      // 監聽系統主題偏好變化
+      prefersDarkMode.addEventListener('change', (e) => {
+        // 只有在使用者沒有手動設定主題時才響應系統偏好
+        if (!localStorage.getItem('theme')) {
+          applyTheme(e.matches);
+        }
+      });
+
+      // 按鈕點擊事件
+      elements.themeToggleBtn.addEventListener('click', () => {
+        const isDarkMode = document.body.classList.toggle('dark-mode');
+        localStorage.setItem('theme', isDarkMode ? 'dark' : 'light'); // 儲存使用者選擇
+      });
+
+      const savedPrice = localStorage.getItem('savedPrice');
+      if (savedPrice) {
+        elements.priceInput.value = savedPrice;
+        calculate();
+      }
+    };
+
+    init();
+  </script>
+</body>
+</html>
